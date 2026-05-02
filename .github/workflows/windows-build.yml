@@ -1,7 +1,7 @@
-name: Windows Build
+name: Windows Build Fix
 
 on:
-  workflow_dispatch: # Allows you to run this manually from the Actions tab
+  workflow_dispatch: 
 
 jobs:
   build:
@@ -24,8 +24,6 @@ jobs:
         uses: jurplel/install-qt-action@v3
         with:
           version: '5.15.2'
-          host: 'windows'
-          target: 'desktop'
           arch: 'win64_msvc2019_64'
 
       - name: Set up MSVC
@@ -51,8 +49,13 @@ jobs:
           cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/thirdparty/vcpkg/scripts/buildsystems/vcpkg.cmake -Daasdk_DIR=${{ github.workspace }}/aasdk/build -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
+      - name: Bundle DLLs (Windeployqt)
+        run: |
+          # Bu adım OpenAuto.exe için gerekli Qt dosyalarını yanına kopyalar
+          windeployqt --release --no-translations --compiler-runtime openauto/build/bin/Release/openauto.exe
+
       - name: Upload Build Result
-        uses: actions/artifacts/upload-artifact@v4
+        uses: actions/upload-artifact@v4
         with:
-          name: OpenAuto-Windows
+          name: OpenAuto-Windows-Package
           path: openauto/build/bin/Release/
