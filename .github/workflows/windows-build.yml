@@ -1,4 +1,4 @@
-name: Windows Build Fix Path
+name: Windows Build Fix Protobuf
 
 on:
   workflow_dispatch: 
@@ -38,8 +38,8 @@ jobs:
           cd aasdk
           mkdir build
           cd build
-          # VCPKG_INSTALLATION_ROOT değişkenini kullanarak yolu garantiye alıyoruz
-          cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+          # Protobuf hatasını engellemek için -Dprotobuf_MODULE_COMPATIBLE=ON ekledik
+          cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release -Dprotobuf_MODULE_COMPATIBLE=ON
           cmake --build . --config Release
 
       - name: Build OpenAuto
@@ -47,7 +47,7 @@ jobs:
           cd openauto
           mkdir build
           cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -Daasdk_DIR="${{ github.workspace }}/aasdk/build" -DCMAKE_BUILD_TYPE=Release
+          cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -Daasdk_DIR="${{ github.workspace }}/aasdk/build" -DCMAKE_BUILD_TYPE=Release -Dprotobuf_MODULE_COMPATIBLE=ON
           cmake --build . --config Release
 
       - name: Bundle DLLs
