@@ -1,4 +1,4 @@
-name: Windows Build Fix
+name: Windows Build Fix Path
 
 on:
   workflow_dispatch: 
@@ -38,7 +38,8 @@ jobs:
           cd aasdk
           mkdir build
           cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/thirdparty/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
+          # VCPKG_INSTALLATION_ROOT değişkenini kullanarak yolu garantiye alıyoruz
+          cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
       - name: Build OpenAuto
@@ -46,12 +47,11 @@ jobs:
           cd openauto
           mkdir build
           cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/thirdparty/vcpkg/scripts/buildsystems/vcpkg.cmake -Daasdk_DIR=${{ github.workspace }}/aasdk/build -DCMAKE_BUILD_TYPE=Release
+          cmake .. -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -Daasdk_DIR="${{ github.workspace }}/aasdk/build" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
-      - name: Bundle DLLs (Windeployqt)
+      - name: Bundle DLLs
         run: |
-          # Bu adım OpenAuto.exe için gerekli Qt dosyalarını yanına kopyalar
           windeployqt --release --no-translations --compiler-runtime openauto/build/bin/Release/openauto.exe
 
       - name: Upload Build Result
