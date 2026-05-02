@@ -1,0 +1,58 @@
+name: Windows Build
+
+on:
+  workflow_dispatch: # Allows you to run this manually from the Actions tab
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout OpenAuto
+        uses: actions/checkout@v4
+        with:
+          repository: f1xpl/openauto
+          path: openauto
+
+      - name: Checkout aasdk
+        uses: actions/checkout@v4
+        with:
+          repository: f1xpl/aasdk
+          path: aasdk
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '5.15.2'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Dependencies via VCPKG
+        run: |
+          vcpkg install boost-asio boost-system boost-thread protobuf openssl libusb rtaudio --triplet x64-windows
+
+      - name: Build aasdk
+        run: |
+          cd aasdk
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/thirdparty/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
+
+      - name: Build OpenAuto
+        run: |
+          cd openauto
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/thirdparty/vcpkg/scripts/buildsystems/vcpkg.cmake -Daasdk_DIR=${{ github.workspace }}/aasdk/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
+
+      - name: Upload Build Result
+        uses: actions/artifacts/upload-artifact@v4
+        with:
+          name: OpenAuto-Windows
+          path: openauto/build/bin/Release/
