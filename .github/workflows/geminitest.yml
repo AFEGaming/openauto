@@ -5,7 +5,7 @@ on:
     branches: [ main, master, development ]
   pull_request:
     branches: [ main, master, development ]
-  workflow_dispatch: # İstediğin zaman manuel tetiklemek için
+  workflow_dispatch:
 
 jobs:
   build:
@@ -36,6 +36,13 @@ jobs:
             mingw-w64-x86_64-qt5-connectivity
             mingw-w64-x86_64-rtaudio
 
+      # [YENİ] Windows'un satır sonlarını bozmasını engelliyoruz
+      - name: Configure Git Line Endings
+        shell: bash # Bu adımı Windows'un kendi ortamında çalıştırıyoruz
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       # 2. Kendi OpenAuto kodunu çekiyoruz
       - name: Checkout OpenAuto
         uses: actions/checkout@v4
@@ -49,6 +56,11 @@ jobs:
           cd openauto
           git config --global user.email "action@github.com"
           git config --global user.name "GitHub Action"
+          
+          # [YENİ] Olası tüm sahte değişiklikleri geri alıp tertemiz sayfaya geçiyoruz
+          git reset --hard HEAD
+          git clean -fd
+          
           git remote add abraha2d https://github.com/abraha2d/openauto.git || true
           git fetch abraha2d development
           
@@ -78,14 +90,12 @@ jobs:
       # 5. OpenAuto'yu Windows/MinGW mimarisine göre derliyoruz
       - name: Build OpenAuto
         run: |
-          # aasdk çıktılarının yollarını dinamik olarak yakalıyoruz (Windows uyumu için)
           AASDK_LIB=$(find ${GITHUB_WORKSPACE}/aasdk_build -name "libaasdk.a" -o -name "libaasdk.dll.a" | head -n 1)
           AASDK_PROTO_LIB=$(find ${GITHUB_WORKSPACE}/aasdk_build -name "libaasdk_proto.a" -o -name "libaasdk_proto.dll.a" | head -n 1)
           
           mkdir openauto_build
           cd openauto_build
           
-          # RPI3_BUILD=TRUE kullanılmadı çünkü hedefimiz Windows portu
           cmake -G "MSYS Makefiles" \
             -DCMAKE_BUILD_TYPE=Release \
             -DAASDK_INCLUDE_DIRS="${GITHUB_WORKSPACE}/aasdk/include" \
@@ -96,7 +106,7 @@ jobs:
             
           make -j$(nproc)
 
-      # 6. Derlenen .exe ve diğer çıktıları GitHub'dan indirilebilir hale getiriyoruz
+      # 6. Derlenen dosyaları paketliyoruz
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
