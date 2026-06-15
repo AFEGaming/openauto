@@ -1,0 +1,107 @@
+name: OpenAuto Windows Build
+
+on:
+  push:
+    branches: [ main, master, development ]
+  pull_request:
+    branches: [ main, master, development ]
+  workflow_dispatch: # İstediğin zaman manuel tetiklemek için
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      # 1. Ortamı MSYS2 ve MinGW64 araçlarıyla hazırlıyoruz
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-protobuf
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-qt5-base
+            mingw-w64-x86_64-qt5-multimedia
+            mingw-w64-x86_64-qt5-connectivity
+            mingw-w64-x86_64-rtaudio
+
+      # 2. Kendi OpenAuto kodunu çekiyoruz
+      - name: Checkout OpenAuto
+        uses: actions/checkout@v4
+        with:
+          path: openauto
+          fetch-depth: 0
+
+      # 3. Rehberdeki Cherry-Pick adımlarını otomatikleştiriyoruz
+      - name: Apply Abraha2d Patches
+        run: |
+          cd openauto
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+          git remote add abraha2d https://github.com/abraha2d/openauto.git || true
+          git fetch abraha2d development
+          
+          # Mesajlara göre commit hash'lerini dinamik buluyoruz
+          FIRST_HASH=$(git log abraha2d/development --grep="Fix onAVChannelStopIndication compile error" -n 1 --format="%H")
+          SECOND_HASH=$(git log abraha2d/development --grep="Fix ping timer error" -n 1 --format="%H")
+          
+          if [ ! -z "$FIRST_HASH" ]; then
+            echo "Cherry-picking: $FIRST_HASH"
+            git cherry-pick $FIRST_HASH || git cherry-pick --skip
+          fi
+          if [ ! -z "$SECOND_HASH" ]; then
+            echo "Cherry-picking: $SECOND_HASH"
+            git cherry-pick $SECOND_HASH || git cherry-pick --skip
+          fi
+          cd ..
+
+      # 4. Bağımlılık olan aasdk'yi klonlayıp derliyoruz
+      - name: Build aasdk
+        run: |
+          git clone https://github.com/abraha2d/aasdk.git
+          mkdir aasdk_build
+          cd aasdk_build
+          cmake -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release ../aasdk
+          make -j$(nproc)
+
+      # 5. OpenAuto'yu Windows/MinGW mimarisine göre derliyoruz
+      - name: Build OpenAuto
+        run: |
+          # aasdk çıktılarının yollarını dinamik olarak yakalıyoruz (Windows uyumu için)
+          AASDK_LIB=$(find ${GITHUB_WORKSPACE}/aasdk_build -name "libaasdk.a" -o -name "libaasdk.dll.a" | head -n 1)
+          AASDK_PROTO_LIB=$(find ${GITHUB_WORKSPACE}/aasdk_build -name "libaasdk_proto.a" -o -name "libaasdk_proto.dll.a" | head -n 1)
+          
+          mkdir openauto_build
+          cd openauto_build
+          
+          # RPI3_BUILD=TRUE kullanılmadı çünkü hedefimiz Windows portu
+          cmake -G "MSYS Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DAASDK_INCLUDE_DIRS="${GITHUB_WORKSPACE}/aasdk/include" \
+            -DAASDK_LIBRARIES="${AASDK_LIB}" \
+            -DAASDK_PROTO_INCLUDE_DIRS="${GITHUB_WORKSPACE}/aasdk_build" \
+            -DAASDK_PROTO_LIBRARIES="${AASDK_PROTO_LIB}" \
+            ../openauto
+            
+          make -j$(nproc)
+
+      # 6. Derlenen .exe ve diğer çıktıları GitHub'dan indirilebilir hale getiriyoruz
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenAuto-Windows-Binaries
+          path: |
+            openauto_build/bin/
+            openauto_build/lib/
+            aasdk_build/**/*.dll
