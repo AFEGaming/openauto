@@ -1,3 +1,5 @@
+compile tests
+
 
 # OpenAuto
 
